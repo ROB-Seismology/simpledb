@@ -1,5 +1,5 @@
 """
-Module providing simple access to SQL databases.
+Module providing simple read-only access to SQL databases.
 Currently supports MySQL, PostgreSQL and SQLite databases.
 """
 
@@ -98,7 +98,7 @@ def query_mysql_db_generic(
 
 	conn = MySQLdb.connect(host=host, user=user, passwd=passwd, db=db,
 			port=port, cursorclass=MySQLdb.cursors.DictCursor, use_unicode=True)
-	c = conn.cursor()
+	cur = conn.cursor()
 
 	if errf !=None:
 		errf.write("%s\n" % query)
@@ -106,8 +106,8 @@ def query_mysql_db_generic(
 	elif verbose:
 		print query
 
-	c.execute(query)
-	return c.fetchall()
+	cur.execute(query)
+	return cur.fetchall()
 
 
 def query_mysql_db(
@@ -212,7 +212,7 @@ def query_pgsql_db_generic(
 	else:
 		conn = pg8000.connect(host=host, user=user, password=passwd, database=db,
 				port=port)
-	c = conn.cursor()
+	cur = conn.cursor()
 
 	if errf !=None:
 		errf.write("%s\n" % query)
@@ -220,15 +220,15 @@ def query_pgsql_db_generic(
 	elif verbose:
 		print query
 
-	c.execute(query)
+	cur.execute(query)
 	if has_psycopg2:
-		return c.fetchall()
+		return cur.fetchall()
 	else:
 		## Manually convert each row to a dict
 		def to_dict_cursor():
-			fields = [row[0] for row in c.description]
+			fields = [rec[0] for rec in cur.description]
 			num_fields = len(fields)
-			for row in c.fetchall():
+			for row in cur.fetchall():
 				yield {fields[i]: row[i] for i in range(num_fields)}
 		return to_dict_cursor()
 
@@ -308,11 +308,11 @@ def query_sqlite_db_generic(
 
 	db = sqlite3.connect(db_filespec)
 	db.row_factory = sqlite3.Row
-	c = db.cursor()
+	cur = db.cursor()
 	if verbose:
 		print query
-	c.execute(query)
-	return c.fetchall()
+	cur.execute(query)
+	return cur.fetchall()
 
 
 def query_sqlite_db(
