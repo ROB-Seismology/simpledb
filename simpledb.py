@@ -3,6 +3,71 @@ Module providing simple read-only access to SQL databases.
 Currently supports MySQL, PostgreSQL and SQLite databases.
 """
 
+import sqlite3
+
+
+class SQLDB(object):
+	def query(self,
+			table_clause,
+			column_clause="*",
+			where_clause="",
+			having_clause="",
+			order_clause="",
+			group_clause="",
+			verbose=False,
+			errf=None):
+		"""
+		"""
+		query = build_sql_query(table_clause, column_clause, where_clause,
+								having_clause, order_clause)
+		return self.query_generic(query, verbose=verbose, errf=errf)
+
+
+class SQLiteDB(SQLDB):
+	def __init__(self, db_filespec):
+		self.connection = sqlite3.connect(db_filespec)
+		self.connection.row_factory = sqlite3.Row
+
+	def get_cursor(self):
+		return self.connection.cursor()
+
+	def query_generic(self, query, verbose=False errf=None):
+		cursor = self.get_cursor()
+
+		if errf != None:
+			errf.write("%s\n" % query)
+			errf.flush()
+		elif verbose:
+			print query
+
+		cursor.execute(query)
+
+		def to_sql_record():
+			for row in cursor.fetchall():
+				yield SQLRecord(row, self)
+
+		return to_sql_record()
+
+
+class SQLRecord(object):
+	def __init__(self, sql_rec, db):
+		self._sql_rec = sql_rec
+		self.db = db
+
+	def __getitem__(self, name):
+		return self._sql_rec[name]
+
+	def __getattr__(self, name):
+		return self._sql_rec[name]
+
+	def keys(self):
+		return self._sql_rec.keys()
+
+	def update(self, table_name):
+		pass
+
+	def insert(self, table_name):
+		pass
 
 
 def build_sql_query(
