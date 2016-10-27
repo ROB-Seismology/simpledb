@@ -31,7 +31,7 @@ class SQLiteDB(SQLDB):
 	def get_cursor(self):
 		return self.connection.cursor()
 
-	def query_generic(self, query, verbose=False errf=None):
+	def query_generic(self, query, verbose=False, errf=None):
 		cursor = self.get_cursor()
 
 		if errf != None:
