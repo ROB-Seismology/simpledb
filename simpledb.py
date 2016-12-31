@@ -183,6 +183,19 @@ class SQLDB(object):
 								having_clause, order_clause)
 		return self.query_generic(query, verbose=verbose, errf=errf)
 
+	def get_num_rows(self, table_name):
+		"""
+		Determine number of rows in database table.
+
+		:param table_name:
+			str, table name
+
+		:return:
+			int, number of rows
+		"""
+		query = 'SELECT COUNT(*) as count FROM %s' % table_name
+		return list(self.query_generic(query))[0]['count']
+
 
 ## sqlite
 import sqlite3
@@ -193,19 +206,112 @@ class SQLiteDB(SQLDB):
 	Class representing SQLite database.
 
 	:param db_filespec:
-		str, full path to sqlite database
+		str, full path to sqlite database (can also be ':memory:')
 	"""
 	def __init__(self, db_filespec):
 		self.db_filespec = db_filespec
 		self.connect()
 
 	def connect(self):
-		self.connection = sqlite3.connect(db_filespec)
+		self.connection = sqlite3.connect(self.db_filespec, detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
 		self.connection.row_factory = sqlite3.Row
+		self.connection.enable_load_extension(True)
+
+	def get_cursor(self):
+		cursor = super(SQLiteDB, self).get_cursor()
+		## Enable spatialite extension
+		#cursor.execute(r'SELECT load_extension("spatialite.dll");')
+		return cursor
 
 	def list_tables(self):
+		"""
+		List database tables.
+
+		return:
+			list of strings, names of database tables
+		"""
 		query = "SELECT * FROM sqlite_master WHERE type='table'"
 		return [rec.name for rec in self.query_generic(query)]
+
+	def create_table(self, table_name, colname_type_dict, primary_key):
+		"""
+		Create database table.
+
+		:param table_name:
+			str, table name
+		:param colname_type_dict:
+			dict, mapping database table column names to column types
+			(NULL, INTEGER, REAL, TEXT, DATE, TIMESTAMP, BLOB)
+		:param primary_key:
+			str, name of primary key
+		"""
+		sql = 'CREATE TABLE %s(' % table_name
+		for i, (colname, coltype) in enumerate(colname_type_dict.items()):
+			if i != 0:
+				sql += ', '
+			sql += '%s %s' % (colname, coltype)
+			if colname == primary_key:
+				sql += ' PRIMARY KEY'
+		sql += ')'
+		self.query_generic(sql)
+		self.connection.commit()
+
+	def drop_table(self, table_name):
+		"""
+		Delete database table
+
+		:param table_name:
+			str, table name
+		"""
+		sql = 'DROP TABLE %s' % table_name
+		self.query_generic(sql)
+		self.connection.commit()
+
+	def add_records(self, table_name, recs, dry_run=False):
+		"""
+		Add records to database table.
+
+		:param table_name:
+			str, table name
+		:param recs:
+			dict, mapping database table columns to values
+		:param dry_run:
+			bool, whether or not to dry run the operation
+			(default: False)
+		"""
+		import datetime
+		cursor = self.get_cursor()
+		for rec in recs:
+			sql = "INSERT INTO %s (%s) VALUES (%s)"
+			#sql %= (table_name, ", ".join(rec.keys()), ", ".join(map(repr, rec.values())))
+			sql %= (table_name, ", ".join(rec.keys()), ', '.join(['?']*len(rec)))
+			cursor.execute(sql, rec.values())
+
+		if not dry_run:
+			self.connection.commit()
+
+	def delete_records(self, table_name, where_clause, dry_run=False):
+		cursor = self.get_cursor()
+		query = 'DELETE FROM %s' % table_name
+		if where_clause.lstrip()[:5].upper() == "WHERE":
+			where_clause = where_clause.lstrip()[5:]
+		query += ' WHERE %s' % where_clause
+		self.query_generic(query)
+
+		if not dry_run:
+			self.connection.commit()
+
+	def update_records(self, table_name, col_dict, where_clause, dry_run=False):
+		query = 'UPDATE %s SET ' % table_name
+		query += ', '.join(['%s = "?"' % key for key in col_dict.keys()])
+		if where_clause.lstrip()[:5].upper() == "WHERE":
+			where_clause = where_clause.lstrip()[5:]
+		query += ' WHERE %s' % where_clause
+		cursor.execute(query, col_dict.values())
+
+		if not dry_run:
+			self.connection.commit()
+
 
 
 def query_sqlite_db_generic(
