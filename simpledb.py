@@ -279,7 +279,7 @@ class SQLiteDB(SQLDB):
 			bool, whether or not to dry run the operation
 			(default: False)
 		"""
-		import datetime
+		#import datetime
 		cursor = self.get_cursor()
 		for rec in recs:
 			sql = "INSERT INTO %s (%s) VALUES (%s)"
@@ -291,11 +291,15 @@ class SQLiteDB(SQLDB):
 			self.connection.commit()
 
 	def delete_records(self, table_name, where_clause, dry_run=False):
+		"""
+		If where_clause is empty, all rows are deleted!
+		"""
 		cursor = self.get_cursor()
 		query = 'DELETE FROM %s' % table_name
 		if where_clause.lstrip()[:5].upper() == "WHERE":
 			where_clause = where_clause.lstrip()[5:]
-		query += ' WHERE %s' % where_clause
+		if where_clause:
+			query += ' WHERE %s' % where_clause
 		self.query_generic(query)
 
 		if not dry_run:
