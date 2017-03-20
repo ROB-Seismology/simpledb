@@ -302,8 +302,9 @@ class SQLiteDB(SQLDB):
 			self.connection.commit()
 
 	def update_records(self, table_name, col_dict, where_clause, dry_run=False):
+		cursor = self.get_cursor()
 		query = 'UPDATE %s SET ' % table_name
-		query += ', '.join(['%s = "?"' % key for key in col_dict.keys()])
+		query += ', '.join(['%s = ?' % key for key in col_dict.keys()])
 		if where_clause.lstrip()[:5].upper() == "WHERE":
 			where_clause = where_clause.lstrip()[5:]
 		query += ' WHERE %s' % where_clause
