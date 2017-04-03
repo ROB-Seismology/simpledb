@@ -230,27 +230,78 @@ class SQLiteDB(SQLDB):
 		return:
 			list of strings, names of database tables
 		"""
-		query = "SELECT * FROM sqlite_master WHERE type='table'"
+		query = "SELECT * FROM sqlite_master WHERE type='table' ORDER BY NAME"
 		return [rec.name for rec in self.query_generic(query)]
 
-	def create_table(self, table_name, colname_type_dict, primary_key):
+	def list_table_columns(self, table_name):
+		"""
+		List column names in particular database table.
+
+		:param table_name:
+			str, name of database table
+
+		:return:
+			list of strings, column names
+		"""
+		query = "SELECT * FROM %s" % table_name
+		cursor = self.get_cursor()
+		cursor.execute(query)
+		return [f[0] for f in cursor.description]
+
+	def get_column_info(self, table_name):
+		"""
+		Return column info for particular table
+		:param table_name:
+			str, name of database table
+
+		:return:
+			list of dictionaries, one for each column, with following keys:
+			- cid: column ID
+			- name: column name
+			- type: column data type
+			- notnull: whether or not the column can be NULL
+			- dflt_value: default value
+			- pk: whether or not column is primary key
+		"""
+		query = "pragma table_info('%s')" % table_name
+		cursor = self.get_cursor()
+		cursor.execute(query)
+		return [{key: row[key] for key in row.keys()} for row in cursor.fetchall()]
+
+	def create_table(self, table_name, column_info_list):
 		"""
 		Create database table.
 
 		:param table_name:
 			str, table name
-		:param colname_type_dict:
-			dict, mapping database table column names to column types
-			(NULL, INTEGER, REAL, TEXT, DATE, TIMESTAMP, BLOB)
-		:param primary_key:
-			str, name of primary key
+		:param column_info_list:
+			list of column info specifications; these are either
+			tuples (cid, name, type, notnull, dflt_value, pk)
+			or dictionaries with these keys (as returned by
+			:meth:`get_col_info`).
+			The following data types are supported in sqlite:
+			NULL, INTEGER, REAL, TEXT, DATE, TIMESTAMP, BLOB
+			Note that only name and type are required, and cid is ignored.
 		"""
 		sql = 'CREATE TABLE %s(' % table_name
-		for i, (colname, coltype) in enumerate(colname_type_dict.items()):
+		for i, column_info in enumerate(column_info_list):
+			if isinstance(column_info, (list, tuple)):
+				cid, colname, coltype, notnull, dflt_value, primary_key = column_info
+			else:
+				cid = column_info.get('cid', 0)
+				colname = column_info['name']
+				coltype = column_info['type']
+				notnull = column_info.get('notnull', 0)
+				dflt_value = column_info.get('dflt_value')
+				primary_key = column_info.get('pk', 0)
 			if i != 0:
 				sql += ', '
 			sql += '%s %s' % (colname, coltype)
-			if colname == primary_key:
+			if dflt_value:
+				sql += ' default %s' % dflt_value
+			if notnull:
+				sql += ' NOT NULL'
+			if primary_key:
 				sql += ' PRIMARY KEY'
 		sql += ')'
 		self.query_generic(sql)
@@ -274,7 +325,7 @@ class SQLiteDB(SQLDB):
 		:param table_name:
 			str, table name
 		:param recs:
-			dict, mapping database table columns to values
+			list of dicts, mapping database table columns to values
 		:param dry_run:
 			bool, whether or not to dry run the operation
 			(default: False)
@@ -316,6 +367,24 @@ class SQLiteDB(SQLDB):
 
 		if not dry_run:
 			self.connection.commit()
+
+	def print_schema(self):
+		"""
+		Print database schema.
+
+		Source: http://stackoverflow.com/questions/11996394/is-there-a-way-to-get-a-schema-of-a-database-from-within-python
+		"""
+		for table_name in self.list_tables():
+			print("{}:".format(table_name))
+			for col_info in self.get_column_info(table_name):
+				print("  {id}: {name}({type}){null}{default}{pk}".format(
+					id=col_info['cid'],
+					name=col_info['name'],
+					type=col_info['type'],
+					null=" not null" if col_info['notnull'] else "",
+					default=" [{}]".format(col_info['dflt_value']) if col_info['dflt_value'] else "",
+					pk=" *{}".format(col_info['pk']) if col_info['pk'] else "",
+				))
 
 
 
