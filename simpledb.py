@@ -1,8 +1,10 @@
 """
-Module providing simple read-only access to SQL databases.
+Module providing simple read-only access to SQL databases as well as
+write access to SQLite/SpatiaLite databases.
 Currently supports MySQL, PostgreSQL and SQLite databases.
 """
 
+import os
 import abc
 
 
@@ -115,6 +117,7 @@ class SQLDB(object):
 
 	def query_generic(self,
 		query,
+		values=(),
 		verbose=False,
 		errf=None):
 		"""
@@ -122,6 +125,10 @@ class SQLDB(object):
 
 		:param query:
 			str, SQL query
+		:param values:
+			tuple or dict, containing values or named parameters to be
+			substituted in the query
+			(default: ())
 		:param verbose:
 			bool, whether or not to print the query (default: False)
 		:param errf:
@@ -138,7 +145,7 @@ class SQLDB(object):
 			print query
 
 		cursor = self.get_cursor()
-		cursor.execute(query)
+		cursor.execute(query, values)
 
 		def to_sql_record():
 			for row in cursor.fetchall():
@@ -196,6 +203,9 @@ class SQLDB(object):
 		query = 'SELECT COUNT(*) as count FROM %s' % table_name
 		return list(self.query_generic(query))[0]['count']
 
+	def close(self):
+		self.connection.close()
+
 
 ## sqlite
 import sqlite3
@@ -215,13 +225,18 @@ class SQLiteDB(SQLDB):
 	def connect(self):
 		self.connection = sqlite3.connect(self.db_filespec, detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
 		self.connection.row_factory = sqlite3.Row
-		self.connection.enable_load_extension(True)
 
-	def get_cursor(self):
-		cursor = super(SQLiteDB, self).get_cursor()
-		## Enable spatialite extension
-		#cursor.execute(r'SELECT load_extension("spatialite.dll");')
-		return cursor
+		## Enable spatialite extension if possible
+		os.environ["PATH"] += r";C:\Anaconda\GDAL\mod-spatialite"
+		self.connection.enable_load_extension(True)
+		try:
+			self.connection.load_extension('mod_spatialite.dll')
+		except:
+			print("Warning: spatialite extension could not be loaded!")
+
+	#def get_cursor(self):
+	#	cursor = super(SQLiteDB, self).get_cursor()
+	#	return cursor
 
 	def list_tables(self):
 		"""
@@ -233,7 +248,8 @@ class SQLiteDB(SQLDB):
 		query = "SELECT * FROM sqlite_master WHERE type='table' ORDER BY NAME"
 		return [rec.name for rec in self.query_generic(query)]
 
-	def list_table_columns(self, table_name):
+	def list_table_columns(self,
+		table_name):
 		"""
 		List column names in particular database table.
 
@@ -248,7 +264,8 @@ class SQLiteDB(SQLDB):
 		cursor.execute(query)
 		return [f[0] for f in cursor.description]
 
-	def get_column_info(self, table_name):
+	def get_column_info(self,
+		table_name):
 		"""
 		Return column info for particular table
 		:param table_name:
@@ -268,7 +285,9 @@ class SQLiteDB(SQLDB):
 		cursor.execute(query)
 		return [{key: row[key] for key in row.keys()} for row in cursor.fetchall()]
 
-	def create_table(self, table_name, column_info_list):
+	def create_table(self,
+		table_name,
+		column_info_list):
 		"""
 		Create database table.
 
@@ -307,7 +326,8 @@ class SQLiteDB(SQLDB):
 		self.query_generic(sql)
 		self.connection.commit()
 
-	def drop_table(self, table_name):
+	def drop_table(self,
+		table_name):
 		"""
 		Delete database table
 
@@ -318,7 +338,10 @@ class SQLiteDB(SQLDB):
 		self.query_generic(sql)
 		self.connection.commit()
 
-	def add_records(self, table_name, recs, dry_run=False):
+	def add_records(self,
+		table_name,
+		recs,
+		dry_run=False):
 		"""
 		Add records to database table.
 
@@ -330,20 +353,30 @@ class SQLiteDB(SQLDB):
 			bool, whether or not to dry run the operation
 			(default: False)
 		"""
-		#import datetime
 		cursor = self.get_cursor()
 		for rec in recs:
 			sql = "INSERT INTO %s (%s) VALUES (%s)"
-			#sql %= (table_name, ", ".join(rec.keys()), ", ".join(map(repr, rec.values())))
 			sql %= (table_name, ", ".join(rec.keys()), ', '.join(['?']*len(rec)))
 			cursor.execute(sql, rec.values())
 
 		if not dry_run:
 			self.connection.commit()
 
-	def delete_records(self, table_name, where_clause, dry_run=False):
+	def delete_records(self,
+		table_name,
+		where_clause,
+		dry_run=False):
 		"""
-		If where_clause is empty, all rows are deleted!
+		Delete records from table.
+
+		:param table_name:
+			string, name of database table
+		:param where_clause:
+			string, where clause identifying table records to delete.
+			Note: if empty, all rows are deleted!!!
+		:param dry_run:
+			bool, whether or not to dry run the operation
+			(default: False)
 		"""
 		cursor = self.get_cursor()
 		query = 'DELETE FROM %s' % table_name
@@ -356,14 +389,101 @@ class SQLiteDB(SQLDB):
 		if not dry_run:
 			self.connection.commit()
 
-	def update_records(self, table_name, col_dict, where_clause, dry_run=False):
+	def update_records(self,
+		table_name,
+		col_dict,
+		where_clause,
+		dry_run=False):
+		# Not sure if this should be kept
+		if where_clause.lstrip()[:5].upper() == "WHERE":
+			where_clause = where_clause.lstrip()[5:]
+
+		cursor = self.get_cursor()
+		for col_name, col_values in col_dict.items():
+			query = 'UPDATE %s SET %s = ' % (table_name, col_name)
+			#query += ', '.join(['%s = ?' % key for key in col_dict.keys()])
+			query += ', '.join(['?'] * len(col_values))
+			if where_clause:
+				query += ' WHERE %s' % where_clause
+			print query[:1000]
+			cursor.execute(query, col_values)
+
+		if not dry_run:
+			self.connection.commit()
+
+	def update_row(self,
+		table_name,
+		col_dict,
+		where_clause,
+		dry_run=False):
+		"""
+		Update values for a particular record in different columns
+
+		:param table_name:
+			string, name of database table
+		:param col_dict:
+			dict, mapping column names to values
+		:param where_clause:
+			string, where clause identifying table record
+		:param dry_run:
+			bool, whether or not to dry run the operation
+			(default: False)
+		"""
 		cursor = self.get_cursor()
 		query = 'UPDATE %s SET ' % table_name
 		query += ', '.join(['%s = ?' % key for key in col_dict.keys()])
+
 		if where_clause.lstrip()[:5].upper() == "WHERE":
 			where_clause = where_clause.lstrip()[5:]
-		query += ' WHERE %s' % where_clause
+		if where_clause:
+			query += ' WHERE %s' % where_clause
+
 		cursor.execute(query, col_dict.values())
+
+		if not dry_run:
+			self.connection.commit()
+
+	def update_column(self,
+		table_name,
+		col_name,
+		col_values,
+		where_clause,
+		order_clause='rowid',
+		dry_run=False):
+		"""
+		Update values for a particular column in different records.
+
+		:param table_name:
+			string, name of database table
+		:param col_name:
+			string, name of column to update
+		:param col_values:
+			list of column values
+		:param where_clause:
+			string, where clause (REQUIRED !)
+		:param order_clause:
+			string, order clause
+			(default: 'rowid')
+		:param dry_run:
+			bool, whether or not to dry run the operation
+			(default: False)
+		"""
+		## Query row IDs with where_clause
+		row_ids = [rec['rowid'] for rec in self.query(table_name, 'rowid', where_clause=where_clause, order_clause=order_clause)]
+		assert len(row_ids) == len(col_values)
+
+		cursor = self.get_cursor()
+		query = 'UPDATE %s SET %s=' % (table_name, col_name)
+
+		## This does not give any error, but effectively writes all column values to each row!
+		#query += '?'
+		#col_data = [(val,) for val in col_values]
+
+		## Use named parameters
+		query += ':value WHERE rowid=:rowid'
+		col_data = [dict(rowid=row_ids[i], value=col_values[i])
+					for i in range(len(col_values))]
+		cursor.executemany(query, col_data)
 
 		if not dry_run:
 			self.connection.commit()
@@ -385,6 +505,122 @@ class SQLiteDB(SQLDB):
 					default=" [{}]".format(col_info['dflt_value']) if col_info['dflt_value'] else "",
 					pk=" *{}".format(col_info['pk']) if col_info['pk'] else "",
 				))
+
+	def init_spatialite(self):
+		"""
+		Generate metadata table required by SpatiaLite
+		"""
+		query = 'SELECT InitSpatialMetadata()'
+		return self.query_generic(query)
+
+	def add_geometry_column(self,
+		table_name,
+		col_name="geom",
+		geom_type="POINT",
+		srid=4326,
+		dim='XY',
+		not_null=False):
+		"""
+		Add geometry column to spatialite database.
+
+		:param table_name:
+			string, name of database table
+		:param col_name:
+			string, name of column for geometry object
+			(default: "geom")
+		:param geom_type:
+			string, one of 'POINT', 'LINESTRING', 'POLYGON', 'MULTIPOINT',
+			'MULTILINESTRING', 'MULTIPOLYGON'
+			(default: 'POINT')
+		:param srid:
+			int, spatial reference identifier
+			(default: 4326 = WGS84)
+		:param dim:
+			string, one of 'XY', 'XYZ', 'XYM', 'XYZM'
+			(default: 'XY')
+		:param not_null:
+			bool, whether or not geometry is NOT allowed to be null
+			(default: False)
+		"""
+		# See: http://www.gaia-gis.it/spatialite-2.4.0-4/splite-python.html
+		# and http://false.ekta.is/2011/04/pyspatialite-spatial-queries-in-python-built-on-sqlite3/
+		query = "SELECT AddGeometryColumn('%s', '%s', %d, '%s', '%s', %d)"
+		query %= (table_name, col_name, srid, geom_type, dim, not_null)
+		return self.query_generic(query)
+
+	def create_points_from_columns(self,
+		table_name,
+		x_col,
+		y_col,
+		geom_col="geom",
+		where_clause="",
+		srid=4326,
+		dry_run=False):
+		"""
+		Create spatialite point objects for table records from x and y columns.
+
+		:param table_name:
+			string, name of database table
+		:param x_col:
+			string, name of column containing X coordinate
+		:param y_col:
+			string, name of column containing Y coordinate
+		:param geom_col:
+			string, name of geometry column
+			(default: "geom")
+		:param where_clause:
+			string, where clause
+			(default: "")
+		:param srid:
+			int, spatial reference identifier
+			(default: 4326 = WGS84)
+		:param dry_run:
+			bool, whether or not to dry run the operation
+			(default: False)
+		"""
+		from collections import OrderedDict
+		rowid_wkt_dict = OrderedDict()
+
+		column_clause = [x_col, y_col, "rowid"]
+		for rec in self.query(table_name, column_clause, where_clause):
+			wkt = "POINT(%s %s)" % (rec[x_col], rec[y_col])
+			rowid_wkt_dict[rec["rowid"]] = wkt
+		self.set_geometry_from_wkt(table_name, rowid_wkt_dict, geom_col=geom_col,
+									srid=srid, dry_run=dry_run)
+
+	def set_geometry_from_wkt(self,
+		table_name,
+		rowid_wkt_dict,
+		geom_col="geom",
+		srid=4326,
+		dry_run=False):
+		"""
+		Create spatialite geometric object for table records from WKT
+		specification.
+
+		:param table_name:
+			string, name of database table
+		:param rowid_wkt_dict:
+			dict, mapping rowids to WKT strings
+		:param geom_col:
+			string, name of geometry column
+			(default: "geom")
+		:param srid:
+			int, spatial reference identifier
+			(default: 4326 = WGS84)
+		:param dry_run:
+			bool, whether or not to dry run the operation
+			(default: False)
+		"""
+		cursor = self.get_cursor()
+		query = "UPDATE %s SET %s=GeomFromText(?,%d) WHERE rowid=?"
+		query %= (table_name, geom_col, srid)
+		for rowid, wkt in rowid_wkt_dict.items():
+			col_value = (wkt, rowid)
+			cursor.execute(query, col_value)
+
+		if not dry_run:
+			self.connection.commit()
 
 
 
