@@ -232,11 +232,10 @@ class SQLiteDB(SQLDB):
 		try:
 			self.connection.load_extension('mod_spatialite.dll')
 		except:
-			print("Warning: spatialite extension could not be loaded!")
-
-	#def get_cursor(self):
-	#	cursor = super(SQLiteDB, self).get_cursor()
-	#	return cursor
+			print("Warning: mod_spatialite.dll could not be loaded!")
+			self.has_spatialite = False
+		else:
+			self.has_spatialite = True
 
 	def list_tables(self):
 		"""
@@ -300,7 +299,8 @@ class SQLiteDB(SQLDB):
 			:meth:`get_col_info`).
 			The following data types are supported in sqlite:
 			NULL, INTEGER, REAL, TEXT, DATE, TIMESTAMP, BLOB
-			Note that only name and type are required, and cid is ignored.
+			Note that only name is required, type defaults to NUMERIC,
+			and cid is ignored.
 		"""
 		sql = 'CREATE TABLE %s(' % table_name
 		for i, column_info in enumerate(column_info_list):
@@ -309,7 +309,7 @@ class SQLiteDB(SQLDB):
 			else:
 				cid = column_info.get('cid', 0)
 				colname = column_info['name']
-				coltype = column_info['type']
+				coltype = column_info.get('type', 'NUMERIC')
 				notnull = column_info.get('notnull', 0)
 				dflt_value = column_info.get('dflt_value')
 				primary_key = column_info.get('pk', 0)
@@ -488,6 +488,40 @@ class SQLiteDB(SQLDB):
 		if not dry_run:
 			self.connection.commit()
 
+	def vacuum(self,
+		table_name=None):
+		"""
+		Clean empty records from database or database table.
+
+		:param table_name:
+			string, name of database table
+			(default: None)
+		"""
+		query = "VACUUM"
+		if table_name:
+			query += " %s" % table_name
+		self.query_generic(query)
+
+	def create_index(self,
+		table_name,
+		col_name,
+		idx_name=None):
+		"""
+		Create index on particular column of a database table.
+
+		:param table_name:
+			string, name of database table
+		:param col_name:
+			string, name of column
+		:param idx_name:
+			string, name of index
+			(default: Noe)
+		"""
+		if not idx_name:
+			idx_name = "%s_IDX" % col_name
+		query = "CREATE INDEX %s ON %s(%s)"
+		query %= (idx_name, table_name, col_name)
+
 	def print_schema(self):
 		"""
 		Print database schema.
@@ -506,11 +540,28 @@ class SQLiteDB(SQLDB):
 					pk=" *{}".format(col_info['pk']) if col_info['pk'] else "",
 				))
 
-	def init_spatialite(self):
+	def init_spatialite(self,
+		populate_spatial_ref_sys="all"):
 		"""
 		Generate metadata table required by SpatiaLite
+
+		:param populate_spatial_ref_sys:
+			string, how to populate table 'spatial_ref_sys':
+			- "all": will insert all 4000+ SRID definitions
+			- "wgs84": will simply insert approx. 100 basic SRIDs based on
+				WGS84 (WGS84 lat/long and WGS84/UTM), which will decrease
+				the size of the database
+			- "empty": will simply create the spatial_ref_sys table;
+				no row will be inserted, this task will need to be handled
+				manually at a later time
+			(default: "all")
 		"""
-		query = 'SELECT InitSpatialMetadata()'
+		if populate_spatial_ref_sys in ("empty", "wgs84"):
+			query = "SELECT InitSpatialMetadata('%s')"
+			query %= populate_spatial_ref_sys.upper()
+		else:
+			query = "SELECT InitSpatialMetadata()"
+
 		return self.query_generic(query)
 
 	def add_geometry_column(self,
@@ -530,7 +581,9 @@ class SQLiteDB(SQLDB):
 			(default: "geom")
 		:param geom_type:
 			string, one of 'POINT', 'LINESTRING', 'POLYGON', 'MULTIPOINT',
-			'MULTILINESTRING', 'MULTIPOLYGON'
+			'MULTILINESTRING', 'MULTIPOLYGON' or 'GEOMETRY' (generic
+			geometry that may mix several geometries, note that this
+			may not be supported by all GIS applications)
 			(default: 'POINT')
 		:param srid:
 			int, spatial reference identifier
@@ -548,10 +601,28 @@ class SQLiteDB(SQLDB):
 		query %= (table_name, col_name, srid, geom_type, dim, not_null)
 		return self.query_generic(query)
 
+	def discard_geometry_column(self, table_name, geom_col="geom"):
+		"""
+		Remove any metadata and any trigger related to the given geometry
+		column. This will leave any geometry-value stored within the
+		corresponding table absolutely untouched.
+
+		:param table_name:
+			string, name of database table
+		:param geom_col:
+			string, name of geometry column
+			(default: "geom")
+		"""
+		query = "SELECT DiscardGeometryColumn('%s', '%s')"
+		query %= (table_name, geom_col)
+		self.query_generic(query)
+		# Commit required?
+
 	def create_points_from_columns(self,
 		table_name,
 		x_col,
 		y_col,
+		z_col=None,
 		geom_col="geom",
 		where_clause="",
 		srid=4326,
@@ -565,6 +636,13 @@ class SQLiteDB(SQLDB):
 			string, name of column containing X coordinate
 		:param y_col:
 			string, name of column containing Y coordinate
+		:param z_col:
+			string, name of column containing Z coordinate
+			Note that spatial queries do not take into account the Z
+			coordinate. Note also that :meth:`add_geometry_column`
+			must have been called with the appropriate :param:`dim`
+			("XYZ" or "XYZM")
+			(default: None)
 		:param geom_col:
 			string, name of geometry column
 			(default: "geom")
@@ -583,7 +661,10 @@ class SQLiteDB(SQLDB):
 
 		column_clause = [x_col, y_col, "rowid"]
 		for rec in self.query(table_name, column_clause, where_clause):
-			wkt = "POINT(%s %s)" % (rec[x_col], rec[y_col])
+			if z_col:
+				wkt = "POINTZ(%s %s %s)" % (rec[x_col], rec[y_col], rec[z_col])
+			else:
+				wkt = "POINT(%s %s)" % (rec[x_col], rec[y_col])
 			rowid_wkt_dict[rec["rowid"]] = wkt
 		self.set_geometry_from_wkt(table_name, rowid_wkt_dict, geom_col=geom_col,
 									srid=srid, dry_run=dry_run)
@@ -621,6 +702,106 @@ class SQLiteDB(SQLDB):
 
 		if not dry_run:
 			self.connection.commit()
+
+	def get_geometry_types(self,
+		table_name,
+		geom_col="geom"):
+		"""
+		Obtain geometry types for particular database table.
+
+		:param table_name:
+			string, name of database table
+		:param geom_col:
+			string, name of geometry column
+			(default: "geom")
+
+		:return:
+			string, geometry type
+		"""
+		#query = "SELECT * from geometry_columns"
+		query = "SELECT GeometryType(%s) FROM %s"
+		query %= (geom_col, table_name)
+
+		return set([rec.values()[0] for rec in list(self.query_generic(query))])
+
+	def load_gis_file(self,
+		gis_filespec,
+		table_name=None,
+		geom_col="geom"):
+		"""
+		Load GIS file in database table.
+
+		:param gis_filespec:
+			string, full path to GIS file
+		:param table_name:
+			string, name of database table
+			(None, will use basename of :param:`gis_filespec`)
+		:param geom_col:
+			string, name of geometry column
+			(default: "geom")
+		"""
+		from mapping.geo.readGIS import read_GIS_file, read_GIS_file_srs, wgs84
+
+		## Determine srid
+		srs = read_GIS_file_srs(gis_filespec)
+		if srs.AutoIdentifyEPSG() == 0: # success
+			srid = int(srs.GetAuthorityCode(None))
+			out_srs = srs
+		else:
+			srid = 4326
+			out_srs = wgs84
+
+		## Create database table
+		if table_name is None:
+			table_name = os.path.splitext(os.path.split(gis_filespec)[1])[0]
+
+		gis_records = read_GIS_file(gis_filespec, out_srs=out_srs)
+		col_names = gis_records[0].keys()
+		col_names.remove('obj')
+		col_names.remove('#')
+		col_info_list = [dict(name=col_name) for col_name in col_names]
+		self.create_table(table_name, col_info_list)
+
+		## Write records
+		geometries = []
+		db_records = []
+		for rec in gis_records:
+			geom = rec.pop('obj')
+			geometries.append(geom)
+			rec.pop('#')
+			db_records.append(rec)
+		self.add_records(table_name, db_records)
+
+		## Write geometries
+		self.init_spatialite()
+		geometry_types = set(obj.GetGeometryName() for obj in geometries)
+		if len(geometries) > 1:
+			geom_type = "GEOMETRY"
+		else:
+			geom_type = geometries[0]
+		self.add_geometry_column(table_name, geom_col, geom_type, srid=srid)
+		rowid_wkt_dict = {rowid+1: geom.ExportToWkt() for rowid, geom in
+							enumerate(geometries)}
+		self.set_geometry_from_wkt(table_name, rowid_wkt_dict, geom_col, srid=srid)
+
+	def compress_geometry(self,
+		table_name,
+		geom_col="geom"):
+		"""
+		Reduce space taken by geometry info
+
+		:param table_name:
+			string, name of database table
+		:param geom_col:
+			string, name of geometry column
+			(default: "geom")
+		"""
+		query = "UPDATE %s SET %s = CompressGeometry(%s)"
+		query %= (table_name, geom_col, geom_col)
+		self.query_generic(query)
+		self.connection.commit()
+
+	#TODO: how to create spatial index??
 
 
 
