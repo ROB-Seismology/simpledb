@@ -540,6 +540,19 @@ class SQLiteDB(SQLDB):
 					pk=" *{}".format(col_info['pk']) if col_info['pk'] else "",
 				))
 
+	def get_sql_commands(self):
+		"""
+		Get list of SQL commands used to create the database.
+
+		:return:
+			list of strings, SQL commands
+		"""
+		query = 'SELECT * FROM sqlite_master'
+		sql_commands = []
+		for rec in self.query_generic(query):
+			sql_commands.append(rec['sql'])
+		return sql_commands
+
 	def init_spatialite(self,
 		populate_spatial_ref_sys="all"):
 		"""
