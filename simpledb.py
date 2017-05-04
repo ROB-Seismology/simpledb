@@ -88,6 +88,9 @@ class SQLRecord(object):
 	def items(self):
 		return [(key, val) for key, val in zip(self.keys(), self.values())]
 
+	def to_dict(self):
+		return {key:val for key,val in self.items()}
+
 	def update(self, table_name):
 		pass
 
@@ -556,6 +559,27 @@ class SQLiteDB(SQLDB):
 			sql_commands.append(rec['sql'])
 		return sql_commands
 
+	def get_sqlite_version(self):
+		"""
+		Report SQLite version
+
+		:return:
+			string, SQLite version
+		"""
+		query = "SELECT sqlite_version()"
+		return list(self.query_generic(query))[0].values()[0]
+
+	def get_spatialite_version(self):
+		"""
+		Report SpatiaLite version
+
+		:return:
+			string, SpatiaLite version
+		"""
+		if self.has_spatialite:
+			query = "SELECT spatialite_version()"
+			return list(self.query_generic(query))[0].values()[0]
+
 	def init_spatialite(self,
 		populate_spatial_ref_sys="all"):
 		"""
@@ -676,6 +700,8 @@ class SQLiteDB(SQLDB):
 		rowid_wkt_dict = OrderedDict()
 
 		column_clause = [x_col, y_col, "rowid"]
+		if z_col:
+			column_clause.append(z_col)
 		for rec in self.query(table_name, column_clause, where_clause):
 			if z_col:
 				wkt = "POINTZ(%s %s %s)" % (rec[x_col], rec[y_col], rec[z_col])
@@ -768,7 +794,7 @@ class SQLiteDB(SQLDB):
 			out_srs = wgs84
 
 		## Create database table
-		if table_name is None:
+		if not table_name:
 			table_name = os.path.splitext(os.path.split(gis_filespec)[1])[0]
 
 		gis_records = read_GIS_file(gis_filespec, out_srs=out_srs)
