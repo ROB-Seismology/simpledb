@@ -5,6 +5,7 @@ Currently supports MySQL, PostgreSQL and SQLite databases.
 """
 
 import os
+import sys
 import abc
 
 
@@ -227,7 +228,9 @@ class SQLiteDB(SQLDB):
 		self.connection.row_factory = sqlite3.Row
 
 		## Enable spatialite extension if possible
-		os.environ["PATH"] += r";C:\Anaconda\GDAL\mod-spatialite"
+		spatialite_path = os.path.split(sys.executable)[0]
+		spatialite_path = os.path.join(spatialite_path, "GDAL", "mod-spatialite")
+		os.environ["PATH"] += ";%s" % spatialite_path
 		self.connection.enable_load_extension(True)
 		try:
 			self.connection.load_extension('mod_spatialite.dll')
@@ -244,7 +247,7 @@ class SQLiteDB(SQLDB):
 		return:
 			list of strings, names of database tables
 		"""
-		query = "SELECT * FROM sqlite_master WHERE type='table' ORDER BY NAME"
+		query = "SELECT name FROM sqlite_master WHERE type='table' ORDER BY NAME"
 		return [rec.name for rec in self.query_generic(query)]
 
 	def list_table_columns(self,
@@ -258,7 +261,7 @@ class SQLiteDB(SQLDB):
 		:return:
 			list of strings, column names
 		"""
-		query = "SELECT * FROM %s" % table_name
+		query = "SELECT * FROM %s limit 0" % table_name
 		cursor = self.get_cursor()
 		cursor.execute(query)
 		return [f[0] for f in cursor.description]
@@ -737,7 +740,7 @@ class SQLiteDB(SQLDB):
 
 		return set([rec.values()[0] for rec in list(self.query_generic(query))])
 
-	def load_gis_file(self,
+	def import_table_from_gis_file(self,
 		gis_filespec,
 		table_name=None,
 		geom_col="geom"):
