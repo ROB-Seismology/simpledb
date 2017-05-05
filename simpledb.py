@@ -344,6 +344,76 @@ class SQLiteDB(SQLDB):
 		self.query_generic(sql)
 		self.connection.commit()
 
+	def rename_table(self,
+		table_name,
+		new_table_name):
+		"""
+		Rename database table
+
+		:param table_name:
+			str, current table name
+		:param new_table_name:
+			str, new table name
+		"""
+		sql = 'ALTER TABLE %s RENAME TO %s'
+		sql %= (table_name, new_table_name)
+		self.query_generic(sql)
+		self.connection.commit()
+
+	def add_column(self,
+		table_name,
+		name,
+		type="NUMERIC",
+		notnull=False,
+		dflt_value=None,
+		primary_key=False):
+		"""
+		Add column to database table.
+
+		:param table_name:
+			str, table name
+		:param name:
+			str, name of column
+		:param type:
+			str, column data type
+			The following data types are supported in sqlite:
+			NULL, INTEGER, REAL, TEXT, DATE, TIMESTAMP, BLOB
+			(default: "NUMERIC")
+		:param notnull:
+			bool, whether or not column value is required not to be NULL
+			(default: False)
+		:param dflt_value:
+			mixed, default value
+			(default: None)
+		:param primary_key:
+			bool, whether or not column is a primary key
+			(default: False)
+		"""
+		sql = 'ALTER TABLE %s ADD COLUMN %s %s'
+		sql %= (table_name, name, type)
+		if dflt_value:
+			sql += ' default %s' % dflt_value
+		if notnull:
+			sql += ' NOT NULL'
+		if primary_key:
+			sql += ' PRIMARY KEY'
+		self.query_generic(sql)
+		self.connection.commit()
+
+	def delete_column(self,
+		table_name,
+		col_name):
+		"""
+		Delete column from database.
+		Not supported by SQLite!
+
+		:param table_name:
+			str, table name
+		:param name:
+			str, name of column
+		"""
+		print("Warning: deleting a column is not supported by SQLite!")
+
 	def add_records(self,
 		table_name,
 		recs,
