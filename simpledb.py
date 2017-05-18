@@ -285,7 +285,7 @@ class SQLiteDB(SQLDB):
 			- dflt_value: default value
 			- pk: whether or not column is primary key
 		"""
-		query = "pragma table_info('%s')" % table_name
+		query = "PRAGMA table_info('%s')" % table_name
 		cursor = self.get_cursor()
 		cursor.execute(query)
 		return [{key: row[key] for key in row.keys()} for row in cursor.fetchall()]
