@@ -12,6 +12,7 @@ import abc
 def build_sql_query(
 	table_clause,
 	column_clause="*",
+	join_clause="",
 	where_clause="",
 	having_clause="",
 	order_clause="",
@@ -23,6 +24,9 @@ def build_sql_query(
 		str or list of strings, name(s) of database table(s)
 	:param column_clause:
 		str or list of strings, column clause or list of columns (default: "*")
+	:param join_clause:
+		str or list of (join_type, table_name, condition) tuples,
+		join clause (default: "")
 	:param where_clause:
 		str, where clause (default: "")
 	:param having_clause:
@@ -39,7 +43,15 @@ def build_sql_query(
 		table_clause = ', '.join(table_clause)
 	if isinstance(column_clause, (list, tuple)):
 		column_clause = ', '.join(column_clause)
-	query = 'SELECT %s from %s' % (column_clause, table_clause)
+	query = 'SELECT %s FROM %s' % (column_clause, table_clause)
+	if join_clause:
+		if isinstance(join_clause, (list, tuple)):
+			for (join_type, join_table, condition) in join_clause:
+				if not join_type.split()[-1] == "JOIN":
+					join_type += ' JOIN'
+				query += ' %s %s ON %s' % (join_type.upper(), join_table, condition)
+		else:
+			query += ' %s' % join_clause
 	if where_clause:
 		if where_clause.lstrip()[:5].upper() == "WHERE":
 			where_clause = where_clause.lstrip()[5:]
@@ -160,6 +172,7 @@ class SQLDB(object):
 	def query(self,
 		table_clause,
 		column_clause="*",
+		join_clause="",
 		where_clause="",
 		having_clause="",
 		order_clause="",
@@ -173,6 +186,9 @@ class SQLDB(object):
 			str or list of strings, name(s) of database table(s)
 		:param column_clause:
 			str or list of strings, column clause or list of columns (default: "*")
+		:param join_clause:
+			str or list of (join_type, table_name, condition) tuples,
+			join clause (default: "")
 		:param where_clause:
 			str, where clause (default: "")
 		:param having_clause:
@@ -190,8 +206,8 @@ class SQLDB(object):
 			generator object, yielding an instance of :class:`SQLRecord`
 			for each record
 		"""
-		query = build_sql_query(table_clause, column_clause, where_clause,
-								having_clause, order_clause)
+		query = build_sql_query(table_clause, column_clause, join_clause,
+								where_clause, having_clause, order_clause)
 		return self.query_generic(query, verbose=verbose, errf=errf)
 
 	def get_num_rows(self, table_name):
@@ -545,7 +561,8 @@ class SQLiteDB(SQLDB):
 			(default: False)
 		"""
 		## Query row IDs with where_clause
-		row_ids = [rec['rowid'] for rec in self.query(table_name, 'rowid', where_clause=where_clause, order_clause=order_clause)]
+		row_ids = [rec['rowid'] for rec in self.query(table_name, 'rowid',
+						where_clause=where_clause, order_clause=order_clause)]
 		assert len(row_ids) == len(col_values)
 
 		cursor = self.get_cursor()
@@ -772,7 +789,7 @@ class SQLiteDB(SQLDB):
 		column_clause = [x_col, y_col, "rowid"]
 		if z_col:
 			column_clause.append(z_col)
-		for rec in self.query(table_name, column_clause, where_clause):
+		for rec in self.query(table_name, column_clause, where_clause=where_clause):
 			if z_col:
 				wkt = "POINTZ(%s %s %s)" % (rec[x_col], rec[y_col], rec[z_col])
 			else:
@@ -947,6 +964,7 @@ def query_sqlite_db(
 	db_filespec,
 	table_clause,
 	column_clause="*",
+	join_clause="",
 	where_clause="",
 	having_clause="",
 	order_clause="",
@@ -961,6 +979,9 @@ def query_sqlite_db(
 		str or list of strings, name(s) of database table(s)
 	:param column_clause:
 		str or list of strings, column clause or list of columns (default: "*")
+	:param join_clause:
+		str or list of (join_type, table_name, condition) tuples,
+		join clause (default: "")
 	:param where_clause:
 		str, where clause (default: "")
 	:param having_clause:
@@ -975,8 +996,8 @@ def query_sqlite_db(
 	:return:
 		generator object, yielding a dictionary for each record
 	"""
-	query = build_sql_query(table_clause, column_clause, where_clause,
-							having_clause, order_clause)
+	query = build_sql_query(table_clause, column_clause, join_clause,
+							where_clause, having_clause, order_clause)
 	return query_sqlite_db_generic(db_filespec, query, verbose=verbose)
 
 
@@ -1087,6 +1108,7 @@ if HAS_MYSQL:
 		passwd,
 		table_clause,
 		column_clause="*",
+		join_clause="",
 		where_clause="",
 		having_clause="",
 		order_clause="",
@@ -1109,6 +1131,9 @@ if HAS_MYSQL:
 			str or list of strings, name(s) of database table(s)
 		:param column_clause:
 			str or list of strings, column clause or list of columns (default: "*")
+		:param join_clause:
+			str or list of (join_type, table_name, condition) tuples,
+			join clause (default: "")
 		:param where_clause:
 			str, where clause (default: "")
 		:param having_clause:
@@ -1129,8 +1154,8 @@ if HAS_MYSQL:
 		:return:
 			generator object, yielding a dictionary for each record
 		"""
-		query = build_sql_query(table_clause, column_clause, where_clause,
-								having_clause, order_clause, group_clause)
+		query = build_sql_query(table_clause, column_clause, join_clause,
+						where_clause, having_clause, order_clause, group_clause)
 		return query_mysql_db_generic(db, host, user, passwd, query, port=port,
 										verbose=verbose, errf=errf)
 
@@ -1270,6 +1295,7 @@ if HAS_PSYCOPG2 or HAS_PG8000:
 		passwd,
 		table_clause,
 		column_clause="*",
+		join_clause="",
 		where_clause="",
 		having_clause="",
 		order_clause="",
@@ -1292,6 +1318,9 @@ if HAS_PSYCOPG2 or HAS_PG8000:
 			str or list of strings, name(s) of database table(s)
 		:param column_clause:
 			str or list of strings, column clause or list of columns (default: "*")
+		:param join_clause:
+			str or list of (join_type, table_name, condition) tuples,
+			join clause (default: "")
 		:param where_clause:
 			str, where clause (default: "")
 		:param having_clause:
@@ -1311,8 +1340,8 @@ if HAS_PSYCOPG2 or HAS_PG8000:
 		:return:
 			generator object, yielding a dictionary for each record
 		"""
-		query = build_sql_query(table_clause, column_clause, where_clause,
-								having_clause, order_clause, group_clause)
+		query = build_sql_query(table_clause, column_clause, join_clause,
+						where_clause, having_clause, order_clause, group_clause)
 		return query_pgsql_db_generic(db, host, user, passwd, query, port=port,
 										verbose=verbose, errf=errf)
 
