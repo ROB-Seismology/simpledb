@@ -789,7 +789,7 @@ def query_sqlite_db(
 
 
 if __name__ == "__main__":
-	db_filespec = r"C:\Users\kris\ownCloud\Mendeley Desktop\kris.vanneste@oma.be@www.mendeley.com.sqlite"
+	db_filespec = u"C:\\Users\\kris\\ownCloud\\Mendeley Desktop\\kris.vanneste@oma.be@www.mendeley.com.sqlite"
 	if os.path.exists(db_filespec):
 		sqldb = SQLiteDB(db_filespec)
 		print(sqldb.list_tables())
