@@ -38,6 +38,7 @@ if not reloading:
 else:
 	reload(sqlite)
 from sqlite import (SQLiteDB, query_sqlite_db, query_sqlite_db_generic)
+__all__ = base.__all__ + sqlite.__all__
 
 ## mysql, depends on base
 if not reloading:
@@ -46,6 +47,7 @@ else:
 	reload(mysql)
 if mysql.HAS_MYSQL:
 	from mysql import (MySQLDB, query_mysql_db, query_mysql_db_generic)
+	__all__ += mysql.__all__
 
 ## postgres, depends on base
 if not reloading:
@@ -54,3 +56,4 @@ else:
 	reload(postgres)
 if postgres.HAS_POSTGRES:
 	from postgres import (PgSQLDB, query_pgsql_db, query_pgsql_db_generic)
+	__all__ += postgres.__all__
