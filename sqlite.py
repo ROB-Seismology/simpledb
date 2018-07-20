@@ -653,7 +653,7 @@ class SQLiteDB(SQLDB):
 			string, name of geometry column
 			(default: "geom")
 		"""
-		from mapping.geo.readGIS import read_GIS_file, read_GIS_file_srs, wgs84
+		from mapping.geotools.readGIS import read_GIS_file, read_GIS_file_srs, wgs84
 
 		## Determine srid
 		srs = read_GIS_file_srs(gis_filespec)
@@ -783,8 +783,6 @@ def query_sqlite_db(
 	query = build_sql_query(table_clause, column_clause, join_clause,
 							where_clause, having_clause, order_clause)
 	return query_sqlite_db_generic(db_filespec, query, verbose=verbose)
-
-
 
 
 
