@@ -20,28 +20,33 @@ except NameError:
 else:
     reloading = True # means the module is being reloaded
 
+try:
+	from importlib import reload
+except ImportError:
+	pass
+
 if not reloading:
 	import base
 else:
-	importlib.reload(base)
+	reload(base)
 from base import (SQLDB, SQLRecord, build_sql_query)
 
 if not reloading:
 	import sqlite
 else:
-	importlib.reload(sqlite)
+	reload(sqlite)
 from sqlite import (SQLiteDB, query_sqlite_db, query_sqlite_db_generic)
 
 if not reloading:
 	import mysql
 else:
-	importlib.reload(mysql)
+	reload(mysql)
 if mysql.HAS_MYSQL:
 	from mysql import (MySQLDB, query_mysql_db, query_mysql_db_generic)
 
 if not reloading:
 	import postgres
 else:
-	importlib.reload(postgres)
+	reload(postgres)
 if postgres.HAS_POSTGRES:
 	from postgres import (PgSQLDB, query_pgsql_db, query_pgsql_db_generic)
