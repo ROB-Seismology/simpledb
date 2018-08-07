@@ -16,9 +16,11 @@ sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 try:
 	reloading
 except NameError:
-	reloading = False # means the module is being imported
+	## Module is imported for the first time
+	reloading = False
 else:
-	reloading = True # means the module is being reloaded
+	## Module is reloaded
+	reloading = True
 	try:
 		from importlib import reload
 	except ImportError:
