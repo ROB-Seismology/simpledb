@@ -144,6 +144,7 @@ class SQLDB(object):
 		query,
 		values=(),
 		verbose=False,
+		print_table=False,
 		errf=None):
 		"""
 		Generic query of one or more database tables.
@@ -156,12 +157,17 @@ class SQLDB(object):
 			(default: ())
 		:param verbose:
 			bool, whether or not to print the query (default: False)
+		:param print_table:
+			bool, whether or not to print results of query in a table
+			rather than returning records
+			(default: False)
 		:param errf:
 			file object, where to print errors (default: None)
 
 		:return:
 			generator object, yielding an instance of :class:`SQLRecord`
 			for each record
+			or None if :param:`print_table` is True
 		"""
 		if errf != None:
 			errf.write("%s\n" % query)
@@ -172,7 +178,15 @@ class SQLDB(object):
 		cursor = self.get_cursor()
 		cursor.execute(query, values)
 
-		return self._gen_sql_records(cursor)
+		if print_table:
+			from prettytable import PrettyTable
+			for r, rec in enumerate(self._gen_sql_records(cursor)):
+				if r == 0:
+					tab = PrettyTable(rec.keys())
+				tab.add_row(rec.values())
+			print(tab)
+		else:
+			return self._gen_sql_records(cursor)
 
 	def query(self,
 		table_clause,
@@ -183,6 +197,7 @@ class SQLDB(object):
 		order_clause="",
 		group_clause="",
 		verbose=False,
+		print_table=False,
 		errf=None):
 		"""
 		Query one or more database tables using separate clauses.
@@ -202,10 +217,11 @@ class SQLDB(object):
 			str, order clause (default: "")
 		:param group_clause:
 			str, group clause (default: "")
+
 		:param verbose:
-			bool, whether or not to print the query (default: False)
+		:param print_table:
 		:param errf:
-			file object, where to print errors (default: None)
+			see :meth:`query_generic`
 
 		:return:
 			generator object, yielding an instance of :class:`SQLRecord`
@@ -213,7 +229,8 @@ class SQLDB(object):
 		"""
 		query = build_sql_query(table_clause, column_clause, join_clause,
 								where_clause, having_clause, order_clause)
-		return self.query_generic(query, verbose=verbose, errf=errf)
+		return self.query_generic(query, verbose=verbose,
+								print_table=print_table,errf=errf)
 
 	def get_num_rows(self, table_name):
 		"""
@@ -378,7 +395,7 @@ class SQLDB(object):
 		:param table_name:
 			str, table name
 		:param recs:
-			list of dicts, mapping database table columns to values
+			list of dicts, mapping database table column names to values
 		:param dry_run:
 			bool, whether or not to dry run the operation
 			(default: False)
