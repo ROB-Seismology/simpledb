@@ -120,19 +120,19 @@ class SQLiteDB(SQLDB):
 
 	def add_column(self,
 		table_name,
-		name,
-		type="NUMERIC",
+		col_name,
+		col_type="NUMERIC",
 		notnull=False,
-		dflt_value=None,
+		default_value=None,
 		primary_key=False):
 		"""
 		Add column to database table.
 
 		:param table_name:
 			str, table name
-		:param name:
+		:param col_name:
 			str, name of column
-		:param type:
+		:param col_type:
 			str, column data type
 			The following data types are supported in sqlite:
 			NULL, INTEGER, REAL, TEXT, DATE, TIMESTAMP, BLOB
@@ -140,15 +140,15 @@ class SQLiteDB(SQLDB):
 		:param notnull:
 			bool, whether or not column value is required not to be NULL
 			(default: False)
-		:param dflt_value:
+		:param default_value:
 			mixed, default value
 			(default: None)
 		:param primary_key:
 			bool, whether or not column is a primary key
 			(default: False)
 		"""
-		super(SQLiteDB, self).add_column(table_name, name, type, notnull,
-										deflt_value, primary_key)
+		super(SQLiteDB, self).add_column(table_name, col_name, col_type, notnull,
+										default_value, primary_key)
 
 	def delete_column(self,
 		table_name,
