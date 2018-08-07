@@ -70,6 +70,39 @@ if HAS_MYSQL:
 			cursor.execute("SHOW TABLES")
 			return [rec.values()[0] for rec in cursor.fetchall()]
 
+		def get_column_info(self,
+			table_name):
+			"""
+			Return column info for particular table
+			:param table_name:
+				str, name of database table
+
+			:return:
+				list of dictionaries, one for each column, with following keys:
+				- Field: column name
+				- Type: column data type
+				- Null: whether or not the column can be NULL
+				- Key: key type
+				- Default: default value
+				- Extra:
+			"""
+			query = "DESCRIBE %s" % table_name
+			cursor = self.get_cursor()
+			cursor.execute(query)
+			return [{key: row[key] for key in row.keys()} for row in cursor.fetchall()]
+
+		def vacuum(self,
+			table_name):
+			"""
+			Clean empty records from database or database table.
+
+			:param table_name:
+				string, name of database table
+			"""
+			query = "OPTIMIZE TABLE %s" % table_name
+			self.query_generic(query)
+
+
 
 	def query_mysql_db_generic(
 		db,
