@@ -1,7 +1,6 @@
 """
-Module providing simple read-only access to SQL databases as well as
-write access to SQLite/SpatiaLite databases.
-Currently supports MySQL, PostgreSQL and SQLite databases.
+Module providing basic read-write access to SQL databases.
+Currently supports MySQL, PostgreSQL and SQLite/SpatiaLite databases.
 """
 
 from __future__ import absolute_import, division, print_function, unicode_literals

@@ -22,6 +22,8 @@ class SQLiteDB(SQLDB):
 	:param db_filespec:
 		str, full path to sqlite database (can also be ':memory:')
 	"""
+	_placeholder = '?'
+
 	def __init__(self, db_filespec):
 		self.db_filespec = db_filespec
 		self.connect()
@@ -52,22 +54,6 @@ class SQLiteDB(SQLDB):
 		"""
 		query = "SELECT name FROM sqlite_master WHERE type='table' ORDER BY NAME"
 		return [rec.name for rec in self.query_generic(query)]
-
-	def list_table_columns(self,
-		table_name):
-		"""
-		List column names in particular database table.
-
-		:param table_name:
-			str, name of database table
-
-		:return:
-			list of strings, column names
-		"""
-		query = "SELECT * FROM %s limit 0" % table_name
-		cursor = self.get_cursor()
-		cursor.execute(query)
-		return [f[0] for f in cursor.description]
 
 	def get_column_info(self,
 		table_name):
@@ -132,34 +118,6 @@ class SQLiteDB(SQLDB):
 		self.query_generic(sql)
 		self.connection.commit()
 
-	def drop_table(self,
-		table_name):
-		"""
-		Delete database table
-
-		:param table_name:
-			str, table name
-		"""
-		sql = 'DROP TABLE %s' % table_name
-		self.query_generic(sql)
-		self.connection.commit()
-
-	def rename_table(self,
-		table_name,
-		new_table_name):
-		"""
-		Rename database table
-
-		:param table_name:
-			str, current table name
-		:param new_table_name:
-			str, new table name
-		"""
-		sql = 'ALTER TABLE %s RENAME TO %s'
-		sql %= (table_name, new_table_name)
-		self.query_generic(sql)
-		self.connection.commit()
-
 	def add_column(self,
 		table_name,
 		name,
@@ -189,16 +147,8 @@ class SQLiteDB(SQLDB):
 			bool, whether or not column is a primary key
 			(default: False)
 		"""
-		sql = 'ALTER TABLE %s ADD COLUMN %s %s'
-		sql %= (table_name, name, type)
-		if dflt_value:
-			sql += ' default %s' % dflt_value
-		if notnull:
-			sql += ' NOT NULL'
-		if primary_key:
-			sql += ' PRIMARY KEY'
-		self.query_generic(sql)
-		self.connection.commit()
+		super(SQLiteDB, self).add_column(table_name, name, type, notnull,
+										deflt_value, primary_key)
 
 	def delete_column(self,
 		table_name,
@@ -213,57 +163,6 @@ class SQLiteDB(SQLDB):
 			str, name of column
 		"""
 		print("Warning: deleting a column is not supported by SQLite!")
-
-	def add_records(self,
-		table_name,
-		recs,
-		dry_run=False):
-		"""
-		Add records to database table.
-
-		:param table_name:
-			str, table name
-		:param recs:
-			list of dicts, mapping database table columns to values
-		:param dry_run:
-			bool, whether or not to dry run the operation
-			(default: False)
-		"""
-		cursor = self.get_cursor()
-		for rec in recs:
-			sql = "INSERT INTO %s (%s) VALUES (%s)"
-			sql %= (table_name, ", ".join(rec.keys()), ', '.join(['?']*len(rec)))
-			cursor.execute(sql, rec.values())
-
-		if not dry_run:
-			self.connection.commit()
-
-	def delete_records(self,
-		table_name,
-		where_clause,
-		dry_run=False):
-		"""
-		Delete records from table.
-
-		:param table_name:
-			string, name of database table
-		:param where_clause:
-			string, where clause identifying table records to delete.
-			Note: if empty, all rows are deleted!!!
-		:param dry_run:
-			bool, whether or not to dry run the operation
-			(default: False)
-		"""
-		cursor = self.get_cursor()
-		query = 'DELETE FROM %s' % table_name
-		if where_clause.lstrip()[:5].upper() == "WHERE":
-			where_clause = where_clause.lstrip()[5:]
-		if where_clause:
-			query += ' WHERE %s' % where_clause
-		self.query_generic(query)
-
-		if not dry_run:
-			self.connection.commit()
 
 	def update_records(self,
 		table_name,
@@ -283,38 +182,6 @@ class SQLiteDB(SQLDB):
 				query += ' WHERE %s' % where_clause
 			print(query[:1000])
 			cursor.execute(query, col_values)
-
-		if not dry_run:
-			self.connection.commit()
-
-	def update_row(self,
-		table_name,
-		col_dict,
-		where_clause,
-		dry_run=False):
-		"""
-		Update values for a particular record in different columns
-
-		:param table_name:
-			string, name of database table
-		:param col_dict:
-			dict, mapping column names to values
-		:param where_clause:
-			string, where clause identifying table record
-		:param dry_run:
-			bool, whether or not to dry run the operation
-			(default: False)
-		"""
-		cursor = self.get_cursor()
-		query = 'UPDATE %s SET ' % table_name
-		query += ', '.join(['%s = ?' % key for key in col_dict.keys()])
-
-		if where_clause.lstrip()[:5].upper() == "WHERE":
-			where_clause = where_clause.lstrip()[5:]
-		if where_clause:
-			query += ' WHERE %s' % where_clause
-
-		cursor.execute(query, col_dict.values())
 
 		if not dry_run:
 			self.connection.commit()
@@ -378,26 +245,6 @@ class SQLiteDB(SQLDB):
 		if table_name:
 			query += " %s" % table_name
 		self.query_generic(query)
-
-	def create_index(self,
-		table_name,
-		col_name,
-		idx_name=None):
-		"""
-		Create index on particular column of a database table.
-
-		:param table_name:
-			string, name of database table
-		:param col_name:
-			string, name of column
-		:param idx_name:
-			string, name of index
-			(default: Noe)
-		"""
-		if not idx_name:
-			idx_name = "%s_IDX" % col_name
-		query = "CREATE INDEX %s ON %s(%s)"
-		query %= (idx_name, table_name, col_name)
 
 	def print_schema(self):
 		"""

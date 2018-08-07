@@ -1,7 +1,5 @@
 """
-Module providing simple read-only access to SQL databases as well as
-write access to SQLite/SpatiaLite databases.
-Currently supports MySQL, PostgreSQL and SQLite databases.
+Common read/write functionality for all SQL implementations
 """
 
 from __future__ import absolute_import, division, print_function, unicode_literals
@@ -121,6 +119,9 @@ class SQLDB(object):
 	"""
 	__metaclass__ = abc.ABCMeta
 
+	verbose = False
+	_placeholder = '%s'
+
 	@abc.abstractmethod
 	def connect(self):
 		"""
@@ -131,6 +132,9 @@ class SQLDB(object):
 
 	def get_cursor(self):
 		return self.connection.cursor()
+
+	def __del__(self):
+		self.close()
 
 	def _gen_sql_records(self, cursor):
 		for row in cursor.fetchall():
@@ -162,15 +166,11 @@ class SQLDB(object):
 		if errf != None:
 			errf.write("%s\n" % query)
 			errf.flush()
-		elif verbose:
+		elif verbose or self.verbose:
 			print(query)
 
 		cursor = self.get_cursor()
 		cursor.execute(query, values)
-
-		def to_sql_record():
-			for row in cursor.fetchall():
-				yield SQLRecord(row, self)
 
 		return self._gen_sql_records(cursor)
 
@@ -230,4 +230,248 @@ class SQLDB(object):
 
 	def close(self):
 		self.connection.close()
+
+	def list_table_columns(self,
+		table_name):
+		"""
+		List column names in particular database table.
+
+		:param table_name:
+			str, name of database table
+
+		:return:
+			list of strings, column names
+		"""
+		query = "SELECT * FROM %s limit 0" % table_name
+		cursor = self.get_cursor()
+		cursor.execute(query)
+		return [f[0] for f in cursor.description]
+
+	def drop_table(self,
+		table_name):
+		"""
+		Delete database table
+
+		:param table_name:
+			str, table name
+		"""
+		sql = 'DROP TABLE %s' % table_name
+		self.query_generic(sql)
+		self.connection.commit()
+
+	def rename_table(self,
+		table_name,
+		new_table_name):
+		"""
+		Rename database table
+
+		:param table_name:
+			str, current table name
+		:param new_table_name:
+			str, new table name
+		"""
+		sql = 'ALTER TABLE %s RENAME TO %s'
+		sql %= (table_name, new_table_name)
+		self.query_generic(sql)
+		self.connection.commit()
+
+	def create_table(self,
+		table_name,
+		column_info_list):
+		"""
+		Create database table.
+
+		:param table_name:
+			str, table name
+		:param column_info_list:
+			list of column info specifications; these are either
+			tuples (col_name, col_type, notnull, default_value, primary_key)
+			or dictionaries with these keys.
+			Check the relevant manuals to see which data types
+			are supported.
+			Note that only col_name and col_type are required.
+		"""
+		sql = 'CREATE TABLE %s(' % table_name
+		for i, column_info in enumerate(column_info_list):
+			if isinstance(column_info, (list, tuple)):
+				colname, coltype, notnull, dflt_value, primary_key = column_info
+			else:
+				colname = column_info['col_name']
+				coltype = column_info['col_type']
+				notnull = column_info.get('notnull', 0)
+				default_value = column_info.get('default_value')
+				primary_key = column_info.get('primary_key', 0)
+			if i != 0:
+				sql += ', '
+			sql += '%s %s' % (colname, coltype)
+			if default_value:
+				sql += ' default %s' % default_value
+			if notnull:
+				sql += ' NOT NULL'
+			if primary_key:
+				sql += ' PRIMARY KEY'
+		sql += ')'
+		self.query_generic(sql)
+		self.connection.commit()
+
+	def add_column(self,
+		table_name,
+		col_name,
+		col_type,
+		notnull=False,
+		default_value=None,
+		primary_key=False):
+		"""
+		Add column to database table.
+
+		:param table_name:
+			str, table name
+		:param col_name:
+			str, name of column
+		:param col_type:
+			str, column data type
+		:param notnull:
+			bool, whether or not column value is required not to be NULL
+			(default: False)
+		:param default_value:
+			mixed, default value
+			(default: None)
+		:param primary_key:
+			bool, whether or not column is a primary key
+			(default: False)
+		"""
+		sql = 'ALTER TABLE %s ADD COLUMN %s %s'
+		sql %= (table_name, col_name, col_type)
+		if default_value:
+			sql += ' default %s' % default_value
+		if notnull:
+			sql += ' NOT NULL'
+		if primary_key:
+			sql += ' PRIMARY KEY'
+		self.query_generic(sql)
+		self.connection.commit()
+
+	def delete_column(self,
+		table_name,
+		col_name):
+		"""
+		Delete column from database.
+		Not supported by SQLite!
+
+		:param table_name:
+			str, table name
+		:param col_name:
+			str, name of column
+		"""
+		sql = 'ALTER TABLE %s DROP COLUMN %s'
+		sql %= (table_name, col_name)
+		self.query_generic(sql)
+		self.connection.commit()
+
+	def add_records(self,
+		table_name,
+		recs,
+		dry_run=False):
+		"""
+		Add records to database table.
+
+		:param table_name:
+			str, table name
+		:param recs:
+			list of dicts, mapping database table columns to values
+		:param dry_run:
+			bool, whether or not to dry run the operation
+			(default: False)
+		"""
+		cursor = self.get_cursor()
+		for rec in recs:
+			sql = "INSERT INTO %s (%s) VALUES (%s)"
+			sql %= (table_name, ", ".join(rec.keys()), ', '.join([self._placeholder]*len(rec)))
+			if self.verbose:
+				print(sql)
+			cursor.execute(sql, rec.values())
+
+		if not dry_run:
+			self.connection.commit()
+
+	def delete_records(self,
+		table_name,
+		where_clause,
+		dry_run=False):
+		"""
+		Delete records from table.
+
+		:param table_name:
+			string, name of database table
+		:param where_clause:
+			string, where clause identifying table records to delete.
+			Note: if empty, all rows are deleted!!!
+		:param dry_run:
+			bool, whether or not to dry run the operation
+			(default: False)
+		"""
+		cursor = self.get_cursor()
+		sql = 'DELETE FROM %s' % table_name
+		if where_clause.lstrip()[:5].upper() == "WHERE":
+			where_clause = where_clause.lstrip()[5:]
+		if where_clause:
+			sql += ' WHERE %s' % where_clause
+		self.query_generic(sql)
+
+		if not dry_run:
+			self.connection.commit()
+
+	def update_row(self,
+		table_name,
+		col_dict,
+		where_clause,
+		dry_run=False):
+		"""
+		Update values for a particular record in different columns
+
+		:param table_name:
+			string, name of database table
+		:param col_dict:
+			dict, mapping column names to values
+		:param where_clause:
+			string, where clause identifying table record
+		:param dry_run:
+			bool, whether or not to dry run the operation
+			(default: False)
+		"""
+		cursor = self.get_cursor()
+		sql = 'UPDATE %s SET ' % table_name
+		sql += ', '.join(['%s = %s' % (key, self._placeholder) for key in col_dict.keys()])
+
+		if where_clause.lstrip()[:5].upper() == "WHERE":
+			where_clause = where_clause.lstrip()[5:]
+		if where_clause:
+			sql += ' WHERE %s' % where_clause
+
+		cursor.execute(sql, col_dict.values())
+
+		if not dry_run:
+			self.connection.commit()
+
+	def create_index(self,
+		table_name,
+		col_name,
+		idx_name=None):
+		"""
+		Create index on particular column of a database table.
+
+		:param table_name:
+			string, name of database table
+		:param col_name:
+			string, name of column
+		:param idx_name:
+			string, name of index
+			(default: None)
+		"""
+		if not idx_name:
+			idx_name = "%s_IDX" % col_name
+		sql = "CREATE INDEX %s ON %s(%s)"
+		sql %= (idx_name, table_name, col_name)
+		self.query_generic(sql)
+		self.connection.commit()
 
