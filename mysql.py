@@ -1,5 +1,5 @@
 """
-Provides read access to MySQL databases.
+Provides access to MySQL databases.
 """
 
 from __future__ import absolute_import, division, print_function, unicode_literals
