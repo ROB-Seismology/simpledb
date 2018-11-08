@@ -58,3 +58,10 @@ else:
 if postgres.HAS_POSTGRES:
 	from postgres import (PgSQLDB, query_pgsql_db, query_pgsql_db_generic)
 	__all__ += postgres.__all__
+
+## Clean up again...
+## Remove module root folder from sys.path
+sys.path = sys.path[:-1]
+## Remove submodules from sys.modules
+for submodule_name in ['base', 'sqlite', 'mysql', 'postgres']:
+	del sys.modules[submodule_name]
