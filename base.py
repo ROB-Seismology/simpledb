@@ -123,6 +123,7 @@ class SQLDB(object):
 	"""
 	__metaclass__ = abc.ABCMeta
 
+	connection = None
 	verbose = False
 	_placeholder = '%s'
 
@@ -315,7 +316,7 @@ class SQLDB(object):
 		sql = 'CREATE TABLE %s(' % table_name
 		for i, column_info in enumerate(column_info_list):
 			if isinstance(column_info, (list, tuple)):
-				colname, coltype, notnull, dflt_value, primary_key = column_info
+				colname, coltype, notnull, default_value, primary_key = column_info
 			else:
 				colname = column_info['col_name']
 				coltype = column_info['col_type']
@@ -431,7 +432,6 @@ class SQLDB(object):
 			bool, whether or not to dry run the operation
 			(default: False)
 		"""
-		cursor = self.get_cursor()
 		sql = 'DELETE FROM %s' % table_name
 		if where_clause.lstrip()[:5].upper() == "WHERE":
 			where_clause = where_clause.lstrip()[5:]
@@ -495,4 +495,3 @@ class SQLDB(object):
 		sql %= (idx_name, table_name, col_name)
 		self.query_generic(sql)
 		self.connection.commit()
-
