@@ -534,11 +534,11 @@ class SQLiteDB(SQLDB):
 
 		## Write geometries
 		self.init_spatialite()
-		geometry_types = set(obj.GetGeometryName() for obj in geometries)
+		geometry_types = [obj.GetGeometryName() for obj in geometries]
 		if len(geometries) > 1:
 			geom_type = "GEOMETRY"
 		else:
-			geom_type = geometries[0]
+			geom_type = geometry_types[0]
 		self.add_geometry_column(table_name, geom_col, geom_type, srid=srid)
 		rowid_wkt_dict = {rowid+1: geom.ExportToWkt() for rowid, geom in
 							enumerate(geometries)}
