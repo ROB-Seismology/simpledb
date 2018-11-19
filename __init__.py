@@ -1,15 +1,16 @@
 """
 Module providing basic read-write access to SQL databases.
 Currently supports MySQL, PostgreSQL and SQLite/SpatiaLite databases.
+
+Author: Kris Vanneste, Royal Observatory of Belgium
 """
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 
-## Make relative imports (in submodules) work in Python 3.x
-import os
-import sys
-sys.path.append(os.path.dirname(os.path.realpath(__file__)))
+
+## Make relative imports work in Python 3
+import importlib
 
 
 ## Reloading mechanism
@@ -22,46 +23,44 @@ else:
 	## Module is reloaded
 	reloading = True
 	try:
+		## Python 3
 		from importlib import reload
 	except ImportError:
+		## Python 2
 		pass
+
 
 ## Import submodules
 
 ## base
 if not reloading:
-	import db.simpledb.base
+	base = importlib.import_module('.base', package=__name__)
 else:
-	reload(db.simpledb.base)
-	#reload(sys.modules[__name__ + '.' + 'base'])
-from db.simpledb.base import (SQLDB, SQLRecord, build_sql_query)
+	reload(base)
+from .base import (SQLDB, SQLRecord, build_sql_query)
 
 ## sqlite, depends on base
 if not reloading:
-	import db.simpledb.sqlite
+	sqlite = importlib.import_module('.sqlite', package=__name__)
 else:
-	reload(db.simpledb.sqlite)
-from db.simpledb.sqlite import (SQLiteDB, query_sqlite_db, query_sqlite_db_generic)
-## Don't know why this works, and absolute module paths do not...
+	reload(sqlite)
+from .sqlite import (SQLiteDB, query_sqlite_db, query_sqlite_db_generic)
 __all__ = base.__all__ + sqlite.__all__
 
 ## mysql, depends on base
 if not reloading:
-	import db.simpledb.mysql
+	mysql = importlib.import_module('.mysql', package=__name__)
 else:
-	reload(db.simpledb.mysql)
+	reload(mysql)
 if mysql.HAS_MYSQL:
-	from db.simpledb.mysql import (MySQLDB, query_mysql_db, query_mysql_db_generic)
+	from .mysql import (MySQLDB, query_mysql_db, query_mysql_db_generic)
 	__all__ += mysql.__all__
 
 ## postgres, depends on base
 if not reloading:
-	import db.simpledb.postgres
+	postgres = importlib.import_module('.postgres', package=__name__)
 else:
-	reload(db.simpledb.postgres)
+	reload(postgres)
 if postgres.HAS_POSTGRES:
-	from db.simpledb.postgres import (PgSQLDB, query_pgsql_db, query_pgsql_db_generic)
+	from .postgres import (PgSQLDB, query_pgsql_db, query_pgsql_db_generic)
 	__all__ += postgres.__all__
-
-## Remove module root folder from sys.path
-sys.path = sys.path[:-1]

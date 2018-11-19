@@ -7,7 +7,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import os
 import sys
 
-from base import (SQLDB, SQLRecord, build_sql_query)
+from .base import (SQLDB, SQLRecord, build_sql_query)
 
 
 __all__ = ["PgSQLDB", "query_pgsql_db", "query_pgsql_db_generic"]
