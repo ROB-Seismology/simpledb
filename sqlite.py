@@ -500,7 +500,7 @@ class SQLiteDB(SQLDB):
 			string, name of geometry column
 			(default: "geom")
 		"""
-		from mapping.geotools.readGIS import read_GIS_file, read_GIS_file_srs, wgs84
+		from mapping.geotools.readGIS import read_GIS_file, read_GIS_file_srs, WGS84
 
 		## Determine srid
 		srs = read_GIS_file_srs(gis_filespec)
@@ -509,7 +509,7 @@ class SQLiteDB(SQLDB):
 			out_srs = srs
 		else:
 			srid = 4326
-			out_srs = wgs84
+			out_srs = WGS84
 
 		## Create database table
 		if not table_name:
