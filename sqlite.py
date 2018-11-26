@@ -500,10 +500,10 @@ class SQLiteDB(SQLDB):
 			string, name of geometry column
 			(default: "geom")
 		"""
-		from mapping.geotools.readGIS import read_GIS_file, read_GIS_file_srs, WGS84
+		from mapping.geotools.read_gis import read_gis_file, read_gis_file_srs, WGS84
 
 		## Determine srid
-		srs = read_GIS_file_srs(gis_filespec)
+		srs = read_gis_file_srs(gis_filespec)
 		if srs.AutoIdentifyEPSG() == 0: # success
 			srid = int(srs.GetAuthorityCode(None))
 			out_srs = srs
@@ -515,7 +515,7 @@ class SQLiteDB(SQLDB):
 		if not table_name:
 			table_name = os.path.splitext(os.path.split(gis_filespec)[1])[0]
 
-		gis_records = read_GIS_file(gis_filespec, out_srs=out_srs)
+		gis_records = read_gis_file(gis_filespec, out_srs=out_srs)
 		col_names = gis_records[0].keys()
 		col_names.remove('obj')
 		col_names.remove('#')
