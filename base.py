@@ -89,14 +89,18 @@ class SQLRecord(object):
 		self.db = db
 
 	def __getitem__(self, name):
-		#return self._sql_rec[name]
 		## Hack because python2 sqlite does not accept a Unicode string in
 		## row['string'] and raises "IndexError: Index must be int or string"
-		return self._sql_rec[str(name)]
+		return self._sql_rec.__getitem__(str(name))
 
 	def __getattr__(self, name):
-		#return self._sql_rec[name]
-		return self._sql_rec[str(name)]
+		return self.__getitem__(name)
+
+	def get(self, name, default_value):
+		if name in self._sql_rec:
+			return self.__getitem__(name)
+		else:
+			return default_value
 
 	def keys(self):
 		return self._sql_rec.keys()
