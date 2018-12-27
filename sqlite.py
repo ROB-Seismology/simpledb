@@ -41,9 +41,9 @@ class SQLiteDB(SQLDB):
 			self.connection.load_extension('mod_spatialite.dll')
 		except:
 			print("Warning: mod_spatialite.dll could not be loaded!")
-			self.has_spatialite = False
+			self.HAS_SPATIALITE = False
 		else:
-			self.has_spatialite = True
+			self.HAS_SPATIALITE = True
 
 	def list_tables(self):
 		"""
@@ -294,7 +294,7 @@ class SQLiteDB(SQLDB):
 		:return:
 			string, SpatiaLite version
 		"""
-		if self.has_spatialite:
+		if self.HAS_SPATIALITE:
 			query = "SELECT spatialite_version()"
 			return list(self.query_generic(query))[0].values()[0]
 
