@@ -598,7 +598,7 @@ def query_sqlite_db_generic(
 		tab = pt.from_db_cursor(cur)
 		print(tab)
 	else:
-	return cur.fetchall()
+		return cur.fetchall()
 
 
 def query_sqlite_db(
