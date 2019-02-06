@@ -568,7 +568,8 @@ class SQLiteDB(SQLDB):
 def query_sqlite_db_generic(
 	db_filespec,
 	query,
-	verbose=False):
+	verbose=False,
+	print_table=False):
 	"""
 	Read table from sqlite database, returning each record as a dict
 
@@ -578,6 +579,10 @@ def query_sqlite_db_generic(
 		str, SQL query
 	:param verbose:
 		bool, whether or not to print the query (default: False)
+	:param print_table:
+		bool, whether or not to print results of query in a table
+		rather than returning records
+		(default: False)
 
 	:return:
 		generator object, yielding a dictionary for each record
@@ -588,6 +593,11 @@ def query_sqlite_db_generic(
 	if verbose:
 		print(query)
 	cur.execute(query)
+	if print_table:
+		import prettytable as pt
+		tab = pt.from_db_cursor(cur)
+		print(tab)
+	else:
 	return cur.fetchall()
 
 
@@ -600,7 +610,8 @@ def query_sqlite_db(
 	having_clause="",
 	order_clause="",
 	group_clause="",
-	verbose=False):
+	verbose=False,
+	print_table=False):
 	"""
 	Read table from sqlite database, returning each record as a dict
 
@@ -622,14 +633,16 @@ def query_sqlite_db(
 	:param group_clause:
 		str, group clause (default: "")
 	:param verbose:
-		bool, whether or not to print the query (default: False)
+	:param print_table:
+		see :func:`query_sqlite_db_generic`
 
 	:return:
 		generator object, yielding a dictionary for each record
 	"""
 	query = build_sql_query(table_clause, column_clause, join_clause,
 							where_clause, having_clause, order_clause)
-	return query_sqlite_db_generic(db_filespec, query, verbose=verbose)
+	return query_sqlite_db_generic(db_filespec, query, verbose=verbose,
+									print_table=print_table)
 
 
 
