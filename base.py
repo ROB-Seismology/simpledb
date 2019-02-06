@@ -188,11 +188,12 @@ class SQLDB(object):
 		cursor.execute(query, values)
 
 		if print_table:
-			from prettytable import PrettyTable
+			import prettytable as pt
+			## Ensure order of columns is preserved in table
+			col_names = list(map(lambda x:x[0], cursor.description))
+			tab = pt.PrettyTable(col_names)
 			for r, rec in enumerate(self._gen_sql_records(cursor)):
-				if r == 0:
-					tab = PrettyTable(rec.keys())
-				tab.add_row(rec.values())
+				tab.add_row([rec[col_name] for col_name in col_names])
 			print(tab)
 		else:
 			return self._gen_sql_records(cursor)
@@ -237,7 +238,8 @@ class SQLDB(object):
 			for each record
 		"""
 		query = build_sql_query(table_clause, column_clause, join_clause,
-								where_clause, having_clause, order_clause)
+								where_clause, having_clause, order_clause,
+								group_clause)
 		return self.query_generic(query, verbose=verbose,
 								print_table=print_table,errf=errf)
 
@@ -417,7 +419,9 @@ class SQLDB(object):
 				print(sql)
 			cursor.execute(sql, rec.values())
 
-		if not dry_run:
+		if dry_run:
+			self.connection.rollback()
+		else:
 			self.connection.commit()
 
 	def delete_records(self,
@@ -443,7 +447,9 @@ class SQLDB(object):
 			sql += ' WHERE %s' % where_clause
 		self.query_generic(sql)
 
-		if not dry_run:
+		if dry_run:
+			self.connection.rollback()
+		else:
 			self.connection.commit()
 
 	def update_row(self,
@@ -475,7 +481,51 @@ class SQLDB(object):
 
 		cursor.execute(sql, col_dict.values())
 
-		if not dry_run:
+		if dry_run:
+			self.connection.rollback()
+		else:
+			self.connection.commit()
+
+	def update_rows(self,
+		table_name,
+		col_dict_list,
+		id_col_name,
+		dry_run=False):
+		"""
+		Update multiple records in a table
+
+		:param table_name:
+			string, name of database table
+		:param col_dict_list:
+			list of dicts, mapping column names to values
+			or dict mapping column names to lists of values
+		:param id_col_name:
+			string, name of column in col_dict_list containing unique
+			record ID (which will be used to build the where clause)
+		:param dry_run:
+			bool, whether or not to dry run the operation
+			(default: False)
+		"""
+		if isinstance(col_dict_list, list):
+			for rec in col_dict_list:
+				where_clause = '%s = %s' % (id_col_name, rec[id_col_name])
+				rec = rec.copy()
+				rec.pop(id_col_name)
+				self.update_row(table_name, rec, where_clause)
+
+		elif isinstance(col_dict_list, dict):
+			# TODO: use update_column method if num_rows > num_cols
+			col_names = dict.keys()
+			col_names.pop(id_col_name)
+			for i, id in enumerate(col_dict_list[id_col_name]):
+				row_id = col_dict_list[id_col_name][i]
+				where_clause = "%s = %s" % (id_col_name, row_id)
+				rec = {col_name: col_dict_list[col_name][i] for col_name in col_names}
+				self.update_row(table_name, rec, where_clause)
+
+		if dry_run:
+			self.connection.rollback()
+		else:
 			self.connection.commit()
 
 	def create_index(self,
