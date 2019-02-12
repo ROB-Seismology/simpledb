@@ -36,8 +36,8 @@ class SQLiteDB(SQLDB):
 		spatialite_path = os.path.split(sys.executable)[0]
 		spatialite_path = os.path.join(spatialite_path, "GDAL", "mod-spatialite")
 		os.environ["PATH"] += ";%s" % spatialite_path
-		self.connection.enable_load_extension(True)
 		try:
+			self.connection.enable_load_extension(True)
 			self.connection.load_extension('mod_spatialite.dll')
 		except:
 			print("Warning: mod_spatialite.dll could not be loaded!")
