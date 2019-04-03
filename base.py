@@ -528,6 +528,55 @@ class SQLDB(object):
 		else:
 			self.connection.commit()
 
+	def update_column(self,
+		table_name,
+		col_name,
+		col_values,
+		id_col_name,
+		id_col_values,
+		dry_run=False):
+		"""
+		Update values for a particular column in different rows.
+
+		:param table_name:
+			string, name of database table
+		:param col_name:
+			string, name of column to update
+		:param col_values:
+			list of column values
+		:param id_col_name:
+			string, name of column containing unique (!) IDs
+		:param id_col_values:
+			list or array, containing IDs in same order as column values
+		:param dry_run:
+			bool, whether or not to dry run the operation
+			(default: False)
+		"""
+		## Query row IDs with where_clause
+		#where_clause = '%s in (%s)' % (id_col_name, ','.join(map(str, id_col_values)))
+		#row_ids = [rec[id_col_name] for rec in self.query(table_name, id_col_name,
+		#				where_clause=where_clause, order_clause=order_clause)]
+		## Check that number of id_col_values and col_values is the same,
+		## and that id_col_values are unique
+		assert len(id_col_values) == len(col_values)
+		assert len(set(id_col_values)) == len(id_col_values)
+
+		cursor = self.get_cursor()
+		query = 'UPDATE %s ' % table_name
+		query += 'SET %s = ' % col_name
+		query += '%s '
+		query += 'WHERE %s = ' % id_col_name
+		query += '%s'
+
+		col_data = [zip(col_values, id_col_values)]
+
+		cursor.executemany(query, col_data)
+
+		if dry_run:
+			self.connection.rollback()
+		else:
+			self.connection.commit()
+
 	def create_index(self,
 		table_name,
 		col_name,
