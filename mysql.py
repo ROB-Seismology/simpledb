@@ -57,6 +57,9 @@ if HAS_MYSQL:
 			self.port = port
 			self.connect()
 
+		def __del__(self):
+			self.connection.close()
+
 		def connect(self):
 			self.connection = MySQLdb.connect(host=self.host, user=self.user,
 					passwd=self.passwd, db=self.db, port=self.port,
@@ -100,6 +103,11 @@ if HAS_MYSQL:
 			query = "OPTIMIZE TABLE %s" % table_name
 			self.query_generic(query)
 
+		def close(self):
+			"""
+			Close database connection
+			"""
+			self.connection.close()
 
 
 	def query_mysql_db_generic(
@@ -161,6 +169,8 @@ if HAS_MYSQL:
 			print(tab)
 		else:
 			return cur.fetchall()
+		cur.close()
+		conn.close()
 
 
 	def query_mysql_db(
