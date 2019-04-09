@@ -92,6 +92,36 @@ if HAS_MYSQL:
 			cursor.execute(query)
 			return [{key: row[key] for key in row.keys()} for row in cursor.fetchall()]
 
+		def get_sql_command(self,
+			table_name):
+			"""
+			Get SQL command used to create a particular database table.
+
+			:return:
+				str, SQL command
+			"""
+			query = "SHOW CREATE TABLE %s" % table_name
+			cursor = self.get_cursor()
+			cursor.execute(query)
+			return cursor.fetchone().get('Create Table')
+
+		def get_sql_commands(self):
+			"""
+			Get list of SQL commands used to create the database.
+
+			:return:
+				list of strings, SQL commands
+			"""
+			sql_commands = []
+			for table_name in self.list_tables():
+				try:
+					cmd = self.get_sql_command(table_name)
+				except:
+					print("Skipped table %s" % table_name)
+				else:
+					sql_commands.append(cmd)
+			return sql_commands
+
 		def vacuum(self,
 			table_name):
 			"""
