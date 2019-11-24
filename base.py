@@ -56,6 +56,8 @@ def build_sql_query(
 		else:
 			query += ' %s' % join_clause
 	if where_clause:
+		if isinstance(where_clause, list):
+			where_clause = ' AND '.join(where_clause)
 		if where_clause.lstrip()[:5].upper() == "WHERE":
 			where_clause = where_clause.lstrip()[5:]
 		query += ' WHERE %s' % where_clause
@@ -64,6 +66,8 @@ def build_sql_query(
 			group_clause = group_clause.lstrip()[8:]
 		query += ' GROUP BY %s' % group_clause
 	if having_clause:
+		if isinstance(having_clause, list):
+			having_clause = ' AND '.join(having_clause)
 		if having_clause.lstrip()[:6].upper() == "HAVING":
 			having_clause = having_clause.lstrip()[6:]
 		query += ' HAVING %s' % having_clause
