@@ -29,15 +29,22 @@ def build_sql_query(
 		str or list of strings, column clause or list of columns (default: "*")
 	:param join_clause:
 		str or list of (join_type, table_name, condition) tuples,
-		join clause (default: "")
+		join clause
+		(default: "")
 	:param where_clause:
-		str, where clause (default: "")
+		str or list, where clause
+		If list, different items will be connected using AND operator
+		(default: "")
 	:param having_clause:
-		str, having clause (default: "")
+		str or list, having clause
+		If list, different items will be connected using AND operator
+		(default: "")
 	:param order_clause:
-		str, order clause (default: "")
+		str, order clause
+		(default: "")
 	:param group_clause:
-		str, group clause (default: "")
+		str, group clause
+		(default: "")
 
 	:return:
 		str, SQL query
