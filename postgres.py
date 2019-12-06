@@ -202,7 +202,7 @@ if HAS_POSTGRES:
 
 
 if __name__ == "__main__":
-	from seismogisdb_secrets import (host, user, passwd)
+	from secrets.seismogisdb import (host, user, passwd)
 	db = "nat_earth_cultural"
 	pgdb = PgSQLDB(db, host, user, passwd)
 	for rec in pgdb.query("ne_10m_admin_0_boundary_lines_land", verbose=True):
