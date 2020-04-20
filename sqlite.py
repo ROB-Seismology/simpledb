@@ -376,6 +376,19 @@ class SQLiteDB(SQLDB):
 		self.query_generic(query)
 		# Commit required?
 
+	def drop_geo_table(self, table_name):
+		"""
+		This is the most effective way to clean up a spatial table
+		that is no longer needed. It will:
+		- remove any entries in the geometry_columns TABLE and the created TRIGGERs
+		- remov any other dependencies (such as any registered SpatialViews)
+
+		:param table_name:
+			string, name of database table
+		"""
+		query = "SELECT DropGeoTable('%s')" % table_name
+		self.query_generic(query)
+
 	def create_points_from_columns(self,
 		table_name,
 		x_col,
