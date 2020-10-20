@@ -33,15 +33,21 @@ class SQLiteDB(SQLDB):
 		self.connection.row_factory = sqlite3.Row
 
 		## Enable spatialite extension if possible
-		spatialite_path = os.path.split(sys.executable)[0]
-		spatialite_path = os.path.join(spatialite_path, "GDAL", "mod-spatialite")
-		os.environ["PATH"] += ";%s" % spatialite_path
+		self.connection.enable_load_extension(True)
 		try:
-			self.connection.enable_load_extension(True)
-			self.connection.load_extension('mod_spatialite.dll')
+			self.connection.load_extension('spatialite.dll')
 		except:
-			print("Warning: mod_spatialite.dll could not be loaded!")
-			self.HAS_SPATIALITE = False
+			spatialite_path = os.path.split(sys.executable)[0]
+			spatialite_path = os.path.join(spatialite_path, "GDAL", "mod-spatialite")
+			if not spatialite_path in os.environ["PATH"]:
+				os.environ["PATH"] = spatialite_path + ";" + os.environ["PATH"]
+			try:
+				self.connection.load_extension('mod_spatialite.dll')
+			except:
+				print("Warning: [mod_]spatialite.dll could not be loaded!")
+				self.HAS_SPATIALITE = False
+			else:
+				self.HAS_SPATIALITE = True
 		else:
 			self.HAS_SPATIALITE = True
 
